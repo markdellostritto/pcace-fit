@@ -1,0 +1,14 @@
+# constants
+w=2
+s=1
+# plot settings
+set logscale xy
+set xlabel 'Epoch' font ',14'
+set ylabel 'Error (meV/atom)' font ',14'
+set xtics font ',12'
+set ytics font ',12'
+set grid xtics ytics mxtics mytics lw 0.75*w
+# plot
+plot\
+	'lr.dat' using ($1*s) with lines lw w lc 'black' title ''
+pause -1 'continue'

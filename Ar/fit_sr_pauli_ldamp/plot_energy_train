@@ -1,0 +1,19 @@
+# constants
+fname='pcace_energy.dat'
+w=1.5
+p=1.0
+# plot settings
+set xtics font ',12'
+set ytics font ',12'
+set xlabel 'Structure' font ',14'
+set ylabel 'Energy (eV/atom)' font ',14'
+set grid xtics ytics lw 1.5
+set key font ',14'
+# plot
+plot\
+	fname using 1:2 with linespoints lw w ps p lc 'black' title 'ref',\
+	fname using 1:3 with linespoints lw w ps p lc 'red' title 'cace-tot',\
+	fname using 1:4 with linespoints lw w ps p lc 'gold' title 'cace-pauli',\
+	fname using 1:5 with linespoints lw w ps p lc 'blue' title 'cace-ldamp',\
+	fname using 1:6 with linespoints lw w ps p lc 'cyan' title 'cace-sr'
+pause -1 'continue'

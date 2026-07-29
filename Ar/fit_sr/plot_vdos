@@ -1,0 +1,12 @@
+# constants
+sf=33.35641
+# plot settings
+set xtics font ',12'
+set ytics font ',12'
+set xlabel 'Freqency (cm^{-1})' font ',14'
+set ylabel 'VDOS' font ',14'
+set grid xtics ytics lw 2
+# plot
+plot [0:100]\
+	'vdos.dat' using (sf*$1):2 with lines lw 2 lc 'red' title ''
+pause -1 'continue'

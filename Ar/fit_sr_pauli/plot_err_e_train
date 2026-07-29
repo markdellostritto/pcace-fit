@@ -1,0 +1,17 @@
+# constants
+fname='pcace_energy.dat'
+w=1.5
+p=1.0
+s=1000.0
+set logscale y
+# plot settings
+set xtics font ',12'
+set ytics font ',12'
+set xlabel 'Structure' font ',14'
+set ylabel 'Error - Energy (meV/atom)' font ',14'
+set grid xtics ytics lw 1.5
+set key font ',14'
+# plot
+plot [:] [1.0e-3:1e3]\
+	fname using (abs($2-$3)*s) with linespoints lw w ps p lc 'black' title ''
+pause -1 'continue'

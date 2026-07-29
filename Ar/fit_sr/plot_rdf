@@ -1,0 +1,9 @@
+# plot settings
+set xtics font ',12'
+set ytics font ',12'
+set xlabel 'Distance (A)' font ',14'
+set ylabel 'RDF' font ',14'
+set grid xtics ytics lw 2
+# plot
+plot 'rdf.dat' using 1:2 with lines lw 2 lc 'red' title ''
+pause -1 'continue'
