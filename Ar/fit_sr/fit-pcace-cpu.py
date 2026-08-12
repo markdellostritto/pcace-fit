@@ -78,26 +78,26 @@ key_data = {
 nepoch = 200
 
 print("=========================================================")
-print("Global Variables")
-print("Elements:")
-print("z_list          = ",z_list)
-print("atom_energyies  = ",atomic_energies)
-print(f"d_node_embed   = {d_node_embed}")
-print("Basis:")
-print(f"cutoff_radius  = {rc}")
-print(f"num_radial     = {nr}")
-print(f"dim_radial_e   = {dre}")
-print(f"l_max          = {l_max}")
-print(f"order_max      = {order_max}")
-print("NNH:")
-print("n_hidden        = ",n_hidden)
-print("activation      = ",activation)
-print("Training:")
-print(f"nepoch         = {nepoch}")
-print(f"valid_fraction = {valid_fraction}")
-print(f"batch_size     = {batch_size}")
-print(f"random_seed    = {seed}")
-print("key_data        = ",key_data)
+print( "Global Variables")
+print( "Elements:")
+print(f"z_list        = {z_list}")
+print(f"atom_energies = {atomic_energies}")
+print(f"d_node_embed  = {d_node_embed}")
+print( "Basis:")
+print(f"cutoff_radius = {rc}")
+print(f"num_radial    = {nr}")
+print(f"dim_radial_e  = {dre}")
+print(f"l_max         = {l_max}")
+print(f"order_max     = {order_max}")
+print( "NNH:")
+print(f"n_hidden      = {n_hidden}")
+print(f"activation    = {activation}")
+print( "Training:")
+print(f"nepoch        = {nepoch}")
+print(f"valid_frac    = {valid_fraction}")
+print(f"batch_size    = {batch_size}")
+print(f"random_seed   = {seed}")
+print(f"key_data      = {key_data}")
 print("=========================================================")
 
 #**************************************************************************
@@ -109,19 +109,18 @@ print("loading the data set")
 
 # read data
 path_data = sys.argv[1]
-subset = pcace.data.get_dataset_from_xyz(
-    # training
-    train_path = path_data,
+subset = pcace.data.read_dataset_xyz(
+    # atom properties
     cutoff = rc,
-    # validation
-    valid_path = None,
+    atomic_energies = atomic_energies,
+    # paths
+    path_train = path_data,
+    path_valid = None,
+    path_test  = None,
+    # optimization
     valid_fraction = valid_fraction,
-    # test
-    test_path = None,
-    # data
     seed = seed,
     key_data = key_data,
-    atomic_energies = atomic_energies,
 )
 print(f"ntrain = {len(subset.train)}")
 print(f"nval   = {len(subset.valid)}")
@@ -223,17 +222,17 @@ print("Creating metric functions")
 
 # metric - energy
 metric_energy = Metrics(
-    target_name='energy',
-    predict_name=nnp.key_energy,
-    name='e/atom',
-    per_atom=True
+    name_target  = 'energy',
+    name_predict = nnp.key_energy,
+    name_metric  = 'e/atom',
+    per_atom     = True
 )
 
 # metric - force
 metric_force = Metrics(
-    target_name='forces',
-    predict_name=nnp.key_forces,
-    name='f'
+    name_target  = 'forces',
+    name_predict = nnp.key_forces,
+    name_metric  = 'f'
 )
 
 print(metric_energy)
