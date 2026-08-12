@@ -23,15 +23,18 @@ import pcace
 from pcace.mlp import CACE
 # torch_geometric
 from pcace import torch_geometric
-# molecule
+# data
 from pcace.data import Molecule
+from pcace.data.load_data import read_atoms_xyz
 
 #**************************************************************************
 # Global Variables
 #**************************************************************************
 
-# double type
+# general
+seed = 42
 torch.set_default_dtype(torch.float64)
+
 # device
 device_str = 'cuda'
 device = pcace.tools.init_device(device_str)
@@ -40,14 +43,12 @@ print(f"device: {device}")
 # model
 pcace_model = torch.load(sys.argv[1],weights_only=False)
 pcace_model.to(device_str)
+#rc = float(pcace_model.cutoff.rc.detach().to('cpu').numpy()) # cutoff radius
+rc = 6.0
 
-# elements
-z_list = [18]
-atomic_energies={18: -574.498250374157}
-# basis
-#rc = float(pcace_model.cutoff.rc.detach().to('cuda').numpy()) # cutoff radius
-rc=6.0
-seed = 42
+# elements, keys
+z_list = [1,8]
+atomic_energies={18: -574.498250374157} 
 key_data = {
         'energy': 'energy_ref',
         'forces': 'forces_ref'
@@ -67,10 +68,12 @@ print("=========================================================")
 #**************************************************************************
 
 print("computing energy")
-path_data = sys.argv[2]
-configs = read(path_data, index=":")
+configs, key_data = read_atoms_xyz(
+    path_file = sys.argv[2],
+    key_data = key_data
+)
 writer_energy=open("pcace_energy.dat","w")
-writer_energy.write("#index energy_ref energy_pcace energy_sr energy_pauli z_pauli\n")
+writer_energy.write("#index energy_ref energy_pcace\n")
 writer_force=open("pcace_force.dat","w")
 writer_force.write("#index force_ref force_pcace\n")
 index=1
@@ -78,17 +81,12 @@ for atoms in configs:
     # compute natoms
     natoms=len(atoms.positions) 
     # read energy/force
-    energy_ref=atoms.info.get(key_data["energy"], None)
-    if energy_ref is None and key_data['energy'] == 'energy':
-        try: energy_ref = atoms.get_potential_energy()
-        except: energy_ref = None
+    energy_ref = atoms.info.get(key_data["energy"], None)
+    force_ref = atoms.arrays.get(key_data["forces"], None)
+    force_total_ref =np.sqrt(np.sum(force_ref**2))
+    # compute shifted reference energy
     energy_zero = sum(atomic_energies.get(Z, 0) for Z in atoms.get_atomic_numbers())
     energy_ref_shift = energy_ref - energy_zero
-    force_ref=atoms.arrays.get(key_data["forces"], None)
-    if force_ref is None:
-        try: force_ref = atoms.get_forces()
-        except: force_ref = None
-    force_total_ref=np.sqrt(np.sum(force_ref**2))
     # compute cace energy
     data_loader = torch_geometric.dataloader.DataLoader(
         dataset=[
@@ -104,15 +102,19 @@ for atoms in configs:
     )
     batch_base = next(iter(data_loader)).to(device)
     batch = batch_base.clone()
-    output = pcace_model(batch.to_dict(), training=True)
-    energy_tot_out=output[pcace_model.key_energy].detach().to('cpu').numpy()[0]
-    energy_sr_out=output['energy_sr'].detach().to('cpu').numpy()[0]
-    energy_pauli_out=output['energy_pauli'].detach().to('cpu').numpy()[0]
-    ztot_out=output['z_tot'].detach().to('cpu').numpy()[0]
-    force_tot_out=output[pcace_model.key_forces].detach().to('cpu').numpy()
-    force_total=np.sqrt(np.sum(force_tot_out**2))
+    # store output
+    kwargs = dict(
+        training=True,
+        compute_forces=True,
+        compute_virials=True,
+        compute_stress=True,
+    )
+    output      = pcace_model(batch.to_dict(), **kwargs)
+    energy_out  = output[pcace_model.key_energy].detach().to('cpu').numpy()[0]
+    force_out   = output[pcace_model.key_forces].detach().to('cpu').numpy()
+    force_total = np.sqrt(np.sum(force_out**2))
     # write
-    writer_energy.write(f"{index} {energy_ref_shift/natoms} {energy_tot_out/natoms} {energy_sr_out/natoms} {energy_pauli_out/natoms} {ztot_out/natoms}\n")
+    writer_energy.write(f"{index} {energy_ref_shift/natoms} {energy_out/natoms}\n")
     writer_force.write(f"{index} {force_total_ref} {force_total}\n")
     # increment
     index=index+1
