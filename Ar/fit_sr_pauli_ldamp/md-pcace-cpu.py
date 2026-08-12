@@ -49,14 +49,14 @@ print(f"n_steps = {n_steps}")
 
 def print_energy(a):
     """Function to print the potential, kinetic and total energy."""
-    epot = a.get_potential_energy()[0] / len(a)
+    epot = a.get_potential_energy() / len(a)
     ekin = a.get_kinetic_energy() / len(a)
     print('Energy per atom: Epot = %.4feV  Ekin = %.4feV (T=%3.0fK)  '
         'Etot = %.4feV' % (epot, ekin, ekin / (1.5 * units.kB), epot + ekin)
     )
 
 def write_frame():
-    dyn.atoms.write('md_T-'+str(temperature)+'.xyz', append=True)
+    dyn.atoms.write('md.xyz', append=True)
 
 # *************************************************************************
 # Molecular Dynamics
