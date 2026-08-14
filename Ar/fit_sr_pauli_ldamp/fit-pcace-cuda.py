@@ -64,9 +64,9 @@ use_device = 'cuda'
 device = pcace.tools.init_device(use_device)
 print(f"device: {use_device}")
 # == loss ==
-lw=1.0e-2
-loss_fn_energy=LossAsinh(a=lw)
-loss_fn_force=LossHuber(a=lw)
+lw = 1.0e-2
+loss_fn_energy = LossAsinh(a=lw)
+loss_fn_force  = LossHuber(a=lw)
 # == training ==
 valid_fraction = 0.1
 batch_size = 4
@@ -239,8 +239,8 @@ print("Creating loss functions")
 
 # loss - energy
 loss_energy = pcace.ml.LossMap(
-    target_name='energy',
-    predict_name=nnp.key_energy,
+    name_target  = 'energy',
+    name_predict = nnp.key_energy,
     loss_fn=loss_fn_energy,
     loss_weight=1.0,
     normT=NormT.LINEAR,
@@ -248,8 +248,8 @@ loss_energy = pcace.ml.LossMap(
 
 # loss - force
 loss_force = pcace.ml.LossMap(
-    target_name='forces',
-    predict_name=nnp.key_forces,
+    name_target  = 'forces',
+    name_predict = nnp.key_forces,
     loss_fn=loss_fn_force,
     loss_weight=1.0,
     normT=NormT.NONE,
@@ -262,17 +262,17 @@ print("Creating metric functions")
 
 # metric - energy
 metric_energy = Metrics(
-    target_name='energy',
-    predict_name=nnp.key_energy,
-    name='e/atom',
+    name_target  = 'energy',
+    name_predict = nnp.key_energy,
+    name_metric  = 'e/atom',
     per_atom=True
 )
 
 # metric - force
 metric_force = Metrics(
-    target_name='forces',
-    predict_name=nnp.key_forces,
-    name='f'
+    name_target  = 'forces',
+    name_predict = nnp.key_forces,
+    name_metric  = 'f'
 )
 
 print(metric_energy)
@@ -290,7 +290,6 @@ optimizer=torch.optim.Adam
 #optimizer=Yogi
 optimizer_args = {
     'lr': 1e-2,
-    'betas': (0.99, 0.999)
 }
 
 # ==== scheduler ====
