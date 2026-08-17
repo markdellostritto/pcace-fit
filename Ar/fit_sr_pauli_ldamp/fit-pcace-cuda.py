@@ -109,19 +109,18 @@ print("loading the data set")
 
 # read data
 path_data = sys.argv[1]
-subset = pcace.data.get_dataset_from_xyz(
-    # training
-    train_path = path_data,
+subset = pcace.data.read_dataset_xyz(
+    # atom properties
     cutoff = rc,
-    # validation
-    valid_path = None,
+    atomic_energies = atomic_energies,
+    # paths
+    path_train = path_data,
+    path_valid = None,
+    path_test  = None,
+    # optimization
     valid_fraction = valid_fraction,
-    # test
-    test_path = None,
-    # data
     seed = seed,
     key_data = key_data,
-    atomic_energies = atomic_energies,
 )
 print(f"ntrain = {len(subset.train)}")
 print(f"nval   = {len(subset.valid)}")
