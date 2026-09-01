@@ -8,19 +8,12 @@
 #==== standard libraries ====
 
 import torch
-import logging
 import sys
 import numpy as np
-
-#==== ase ===
-
-from ase.io import read
 
 #==== pcace ====
 
 import pcace
-# mlp
-from pcace.mlp import CACE
 # torch_geometric
 from pcace import torch_geometric
 # data
@@ -41,26 +34,26 @@ device = pcace.tools.init_device(device_str)
 print(f"device: {device}")
 
 # model
-pcace_model = torch.load(sys.argv[1],weights_only=False)
-pcace_model.to(device_str)
-#rc = float(pcace_model.cutoff.rc.detach().to('cpu').numpy()) # cutoff radius
+model = torch.load(sys.argv[1],weights_only=False)
+model.to(device_str)
+#rc = float(model.cutoff.rc.detach().to('cpu').numpy()) # cutoff radius
 rc = 6.0
 
 # elements, keys
-z_list = [1,8]
+z_list = [18]
 atomic_energies={18: -574.498250374157} 
 key_data = {
-        'energy': 'energy_ref',
-        'forces': 'forces_ref'
+    'energy': 'energy_ref',
+    'forces': 'forces_ref'
 }
 
 print("=========================================================")
-print("Global Variables")
-print("Elements:")
-print("z_list        = ",z_list)
-print("atom_energies = ",atomic_energies)
-print(f"random_seed  = {seed}")
-print("key_data      = ",key_data)
+print( "Global Variables")
+print( "Elements:")
+print(f"z_list        = {z_list}")
+print(f"atom_energies = {atomic_energies}")
+print(f"random_seed   = {seed}")
+print(f"key_data      = {key_data}")
 print("=========================================================")
 
 #**************************************************************************
@@ -73,17 +66,27 @@ configs, key_data = read_atoms_xyz(
     key_data = key_data
 )
 writer_energy=open("pcace_energy.dat","w")
-writer_energy.write("#index energy_ref energy_pcace\n")
-writer_force=open("pcace_force.dat","w")
-writer_force.write("#index force_ref force_pcace\n")
+writer_energy.write("#index \
+    energy_ref \
+    energy_nnp \
+    energy_sr \
+    energy_pauli \
+    \n")
+writer_force=open("pcace_forces.dat","w")
+writer_force.write("#index \
+    forces_ref \
+    forces_nnp \
+    forces_sr \
+    forces_pauli \
+    \n")
 index=1
 for atoms in configs:
     # compute natoms
     natoms=len(atoms.positions) 
     # read energy/force
     energy_ref = atoms.info.get(key_data["energy"], None)
-    force_ref = atoms.arrays.get(key_data["forces"], None)
-    force_total_ref =np.sqrt(np.sum(force_ref**2))
+    forces_ref = atoms.arrays.get(key_data["forces"], None)
+    forces_total_ref =np.sqrt(np.sum(forces_ref**2))
     # compute shifted reference energy
     energy_zero = sum(atomic_energies.get(Z, 0) for Z in atoms.get_atomic_numbers())
     energy_ref_shift = energy_ref - energy_zero
@@ -109,13 +112,29 @@ for atoms in configs:
         compute_virials=True,
         compute_stress=True,
     )
-    output      = pcace_model(batch.to_dict(), **kwargs)
-    energy_out  = output[pcace_model.key_energy].detach().to('cpu').numpy()[0]
-    force_out   = output[pcace_model.key_forces].detach().to('cpu').numpy()
-    force_total = np.sqrt(np.sum(force_out**2))
+    output = model(batch.to_dict(), **kwargs)
+    energy_nnp = output["energy_nnp"].detach().to('cpu').numpy()[0]
+    forces_nnp = output["forces_nnp"].detach().to('cpu').numpy()
+    energy_sr = output["energy_sr"].detach().to('cpu').numpy()[0]
+    forces_sr = output["forces_sr"].detach().to('cpu').numpy()
+    energy_pauli = output['energy_pauli'].detach().to('cpu').numpy()[0]
+    forces_pauli = output['forces_pauli'].detach().to('cpu').numpy()
+    forces_nnp_total = np.sqrt(np.sum(forces_nnp**2))
+    forces_sr_total = np.sqrt(np.sum(forces_sr**2))
+    forces_pauli_total = np.sqrt(np.sum(forces_pauli**2))
     # write
-    writer_energy.write(f"{index} {energy_ref_shift/natoms} {energy_out/natoms}\n")
-    writer_force.write(f"{index} {force_total_ref} {force_total}\n")
+    writer_energy.write(f"{index} \
+        {energy_ref_shift/natoms} \
+        {energy_nnp/natoms} \
+        {energy_sr/natoms} \
+        {energy_pauli/natoms} \
+    \n")
+    writer_force.write(f"{index} \
+        {forces_total_ref} \
+        {forces_nnp_total} \
+        {forces_sr_total} \
+        {forces_pauli_total} \
+    \n")
     # increment
     index=index+1
 writer_energy.close()
