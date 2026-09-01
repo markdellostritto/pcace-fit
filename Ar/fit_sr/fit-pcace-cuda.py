@@ -11,21 +11,19 @@ import sys
 import torch
 import logging
 
-#==== ase ===
-
-from ase.io import read
-
 #==== pcace ====
 
 import pcace
 # basis
-from pcace.basis import CutoffCos, CutoffPoly3
+from pcace.basis import CutoffCos
 from pcace.basis import RadialBesselJ
 from pcace.basis import AngularBasis
+from pcace.basis import AngularProduct
 # ml
-from pcace.ml import LossMSE, LossHuber, LossAsinh
+from pcace.ml import LossHuber, LossAsinh
 from pcace.ml import NormT
 from pcace.ml import Metrics
+from pcace.ml import IERF
 # optimization
 from pcace.opt import TrainingTask
 # mlp
@@ -39,34 +37,38 @@ from pcace.mlp import NNP
 
 # == double type ==
 torch.set_default_dtype(torch.float64)
+
 # == logging ==
 pcace.tools.setup_logger(level='INFO')
+
+# == device ==
+use_device = 'cuda'
+device = pcace.tools.init_device(use_device)
+print(f"device: {use_device}")
+
 # == elements ==
 # list of atomic numbers
 z_list = [18] 
-# dictionary pairing atomic numbers 
-# with zero-point energies (i.e. isolated atom)
+# dict pairing an's with zero-point energies
 atomic_energies={18: -574.498250374157}
+
 # == basis ==
 rc = 6.0 # cutoff radius
 nr = 6 # number of radial functions
 dre = 6 # dimension - radial embedding
 l_max = 3 # max angular momentum
-order_max = 2 # max body order
+o_max = 2 # max body order
 d_node_embed = 1 # node embedding dimension
-cutoff_fn = CutoffCos(rc=rc) # cutoff function
-radial_basis = RadialBesselJ(rc=rc, nr=nr, train=True) # radial basis
+
 # == nnh ==
-n_hidden = [12,12] # number of hidden nodes
-activation = torch.nn.SiLU() # activation function
-# == device ==
-use_device = 'cuda' 
-device = pcace.tools.init_device(use_device)
-print(f"device: {use_device}")
+n_hidden = [6,6] # number of hidden nodes
+activation = IERF() # activation function
+
 # == loss ==
 lw = 1.0e-2
 loss_fn_energy = LossAsinh(a=lw)
 loss_fn_force  = LossHuber(a=lw)
+
 # == training ==
 valid_fraction = 0.1
 batch_size = 4
@@ -78,21 +80,21 @@ key_data = {
 nepoch = 200
 
 print("=========================================================")
-print( "Global Variables")
-print( "Elements:")
+print(f"Global Variables")
+print(f"Elements:")
 print(f"z_list        = {z_list}")
 print(f"atom_energies = {atomic_energies}")
 print(f"d_node_embed  = {d_node_embed}")
-print( "Basis:")
+print(f"Basis:")
 print(f"cutoff_radius = {rc}")
 print(f"num_radial    = {nr}")
 print(f"dim_radial_e  = {dre}")
 print(f"l_max         = {l_max}")
-print(f"order_max     = {order_max}")
-print( "NNH:")
+print(f"o_max         = {o_max}")
+print(f"NNH:")
 print(f"n_hidden      = {n_hidden}")
 print(f"activation    = {activation}")
-print( "Training:")
+print(f"Training:")
 print(f"nepoch        = {nepoch}")
 print(f"valid_frac    = {valid_fraction}")
 print(f"batch_size    = {batch_size}")
@@ -146,30 +148,37 @@ loader_valid = pcace.data.load_data_loader(
 
 print("Creating the CACE Model")
 
+# cutoff
+cutoff_fn = CutoffCos(rc=rc) # cutoff function
+# radial basis
+radial = RadialBesselJ(rc=rc, nr=nr, train=True) # radial basis
+# angular basis
+angular = AngularBasis(l_max)
+# product
+angprod = AngularProduct(o_max,l_max)
+# CACE representation
 cace_rep = CACE(
     # atomic numbers
     z_list = z_list,
-    # body order
-    order = order_max,
     # basis
     cutoff = cutoff_fn,
-    radial = radial_basis,
-    angular = AngularBasis(l_max),
+    radial = radial,
+    angular = angular,
+    angprod = angprod,
     # node/edge encoding/embedding
     dim_node_embed = d_node_embed,
     # radial embedding
     dim_radial_embed = dre,
     # message passing
     avg_num_neighbors=1,
-    device=device,
 )
 for param in cace_rep.parameters(): param.requires_grad = True
-cace_rep.to(device)
-logging.info(f"Representation: {cace_rep}")
 
 #**************************************************************************
 # Atomic Neural Network - Short Range
 #**************************************************************************
+
+print("Creating the ANN - SR")
 
 ann_sr = ANN_SR(
     # neural network
@@ -188,8 +197,11 @@ print("Creating the NNP")
 
 nnp = NNP(
     rep = cace_rep,
-    annl = torch.nn.ModuleList([ann_sr])
+    annl = torch.nn.ModuleList([
+        ann_sr
+    ])
 )
+logging.info(f"NNP: {nnp}")
 
 #**************************************************************************
 # Loss/Metrics
@@ -202,7 +214,7 @@ loss_energy = pcace.ml.LossMap(
     name_target  = 'energy',
     name_predict = nnp.key_energy,
     loss_fn = loss_fn_energy,
-    loss_weight = 1.0,
+    loss_wt = 1.0,
     normT = NormT.LINEAR,
 )
 
@@ -211,7 +223,7 @@ loss_force = pcace.ml.LossMap(
     name_target  = 'forces',
     name_predict = nnp.key_forces,
     loss_fn = loss_fn_force,
-    loss_weight = 1.0,
+    loss_wt = 1.0,
     normT = NormT.NONE,
 )
 
@@ -299,17 +311,24 @@ print(scheduler_args)
 print("Creating training task")
 
 task = TrainingTask(
+    # model
     model=nnp,
+    # losses/metrics
     losses=[loss_energy, loss_force],
     metrics=[metric_energy, metric_force],
+    # device
     device=device,
+    # optimizer
     optimizer_cls=optimizer,
     optimizer_args=optimizer_args,
+    # scheduler
     scheduler_cls=scheduler,
     scheduler_args=scheduler_args,
+    # ema
     ema=False,
     ema_decay=0.99,
     ema_start=10, 
+    # misc
     max_grad_norm=None,
     warmup_steps=0,
 )
@@ -325,7 +344,6 @@ task.fit(
 )
 
 task.save_model('model.pth')
-cace_rep.to(device)
 
 #**************************************************************************
 # Finish
